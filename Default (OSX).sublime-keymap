@@ -1,0 +1,5 @@
+[  
+    {
+        "keys": ["super+alt+p"], "command": "python_finder"
+    }
+]
