@@ -26,6 +26,21 @@ class PythonFinderCommand(sublime_plugin.TextCommand):
 
         sels = self.view.sel()
         for s in sels:
+            # Check if defined in current file.
+            k = self.view.substr(s)
+            r = self.view.find_all(r'def\s+{0}\s*\('.format(k))
+            if not r:
+                r = self.view.find_all(r'class\s+{0}\s*\('.format(k))
+            if r:
+                for item in r:
+                    row, col = self.view.rowcol(item.begin())
+                    result = '{0};{1};{2}'.format(
+                        self.view.file_name(), row + 1, self.view.substr(item))
+                    self.result_list.append(result)
+                self.show_result()
+                return
+
+            # If not in current file, search in opened folders and system path
             test_import = sublime.Region(s.a - 1, s.b)
             sentinel = self.view.substr(test_import.begin())
             while re.match('[\w.]', sentinel):
@@ -36,7 +51,7 @@ class PythonFinderCommand(sublime_plugin.TextCommand):
         for key in keywords:
             imported = key.split('.')[0]
             result = self.view.find_all(
-                r'\bfrom\s+(\S+\s)import\s+{0}'.format(imported)
+                r'\bfrom\s+(\S+\s)import.+{0}'.format(imported)
             )
             if not result:
                 result = self.view.find_all(
@@ -92,7 +107,9 @@ class PythonFinderCommand(sublime_plugin.TextCommand):
                 lambda: self.handle_threads(threads),
                 100)
             return
+        self.show_result()
 
+    def show_result(self):
         self.view.sel().clear()
         current_window = self.view.window()
         self.result_list = self.result_list or [DEF_NOT_FOUND]
