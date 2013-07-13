@@ -47,7 +47,7 @@ def get_imported_source(file_name):
     return source_name
 
 
-def search_current(ast_body, file_name, keyword, result_list):
+def search_def(ast_body, file_name, keyword, result_list):
     """
     Search keyword definition in current file.
     """
@@ -58,7 +58,7 @@ def search_current(ast_body, file_name, keyword, result_list):
         if isinstance(node, ast.ClassDef):
             if node.name == keyword:
                 result_list.append('{0};{1};'.format(file_name, node.lineno))
-            search_current(node.body, file_name, keyword, result_list)
+            search_def(node.body, file_name, keyword, result_list)
 
 
 class PythonFinderCommand(sublime_plugin.TextCommand):
@@ -82,9 +82,7 @@ class PythonFinderCommand(sublime_plugin.TextCommand):
             k = self.view.substr(s)
             current_file_name = self.view.file_name()
             expr_ast = get_ast(current_file_name)
-            search_current(expr_ast.body,
-                           current_file_name,
-                           k, self.result_list)
+            search_def(expr_ast.body, current_file_name, k, self.result_list)
             if self.result_list:
                 self.show_result()
                 return
@@ -140,9 +138,7 @@ class PythonFinderCommand(sublime_plugin.TextCommand):
         threads = next_threads
 
         if len(threads):
-            sublime.set_timeout(
-                lambda: self.handle_threads(threads),
-                100)
+            sublime.set_timeout(lambda: self.handle_threads(threads), 100)
             return
         self.show_result()
 
@@ -152,8 +148,7 @@ class PythonFinderCommand(sublime_plugin.TextCommand):
         """
         self.view.sel().clear()
         current_window = self.view.window()
-        self.result_list = list(set(self.result_list))
-        self.result_list = self.result_list or [DEF_NOT_FOUND]
+        self.result_list = list(set(self.result_list)) or [DEF_NOT_FOUND]
         current_window.show_quick_panel(self.result_list, self.open_selected)
 
     def open_selected(self, index):
@@ -220,5 +215,4 @@ class KeywordSearch(threading.Thread):
                 expr_ast = get_ast(file_name)
                 if expr_ast is None:
                     continue
-                search_current(expr_ast.body,
-                               file_name, keyword, self.result_list)
+                search_def(expr_ast.body, file_name, keyword, self.result_list)
