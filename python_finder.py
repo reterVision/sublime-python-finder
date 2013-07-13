@@ -1,94 +1,64 @@
+import ast
 import os
 import re
 import threading
 import sublime
 import sublime_plugin
 
-
 DEF_NOT_FOUND = 'Not Found'
 
 
-def get_imported_source(file_name):
-    source_name = {}
+def get_ast(file_name):
+    """
+    Generate AST using Python library.
+    """
     file_content = ''
-    source = ''
-    word = ''
-    from_tag = False
-    import_tag = False
-    import_brackets_tag = False
-    import_comma_tag = False
-    next_line_tag = False
-
     try:
         with open(file_name, 'rb') as f:
             for line in f:
                 file_content += line
     except IOError:
+        return None
+    return ast.parse(file_content)
+
+
+def get_imported_source(file_name):
+    """
+    Extract imported libraries using Python's AST.
+    """
+    source_name = {}
+    expr_ast = get_ast(file_name)
+    if expr_ast is None:
         return source_name
 
-    for w in file_content:
-        if not w:
-            continue
-        if w == '\n':
-            next_line_tag = False
-            import_comma_tag = False
-        elif w != ' ' and w != '\t':
-            word += w
-            continue
-
-        if not word:
-            continue
-        elif word == 'from':
-            from_tag = True
-            import_brackets_tag = False
-            import_comma_tag = False
-            word = ''
-        elif word == 'import':
-            import_tag = True
-            import_brackets_tag = False
-            import_comma_tag = False
-            word = ''
-        else:
-            if from_tag:
-                upper_dir = 0
-                while upper_dir < len(word) - 1 and word[upper_dir] == '.':
-                    upper_dir += 1
-                word = word[upper_dir:]
-                if upper_dir != 0:
-                    folder = '/'.join(file_name.split('/')[:-upper_dir])
-                    word = folder + '/' + word
-                source = word
-                if source not in source_name:
-                    source_name[source] = []
-                from_tag = False
-            elif import_tag:
-                replace_str = []
-                if '(' in word:
-                    replace_str.append('(')
-                    import_brackets_tag = True
-                if ')' in word:
-                    replace_str.append(')')
-                    import_brackets_tag = False
-                if ',' in word:
-                    replace_str.append(',')
-                    import_comma_tag = True
-                if '\\' in word:
-                    replace_str.append('\\')
-                    next_line_tag = True
-                for s in replace_str:
-                    word = word.replace(s, '')
-
-                if word:
-                    try:
-                        source_name[source].append(word)
-                    except KeyError:
-                        source_name[word] = [word]
-
-                if not (import_brackets_tag or
-                        import_comma_tag or next_line_tag):
-                    import_tag = False
-            word = ''
+    for node in expr_ast.body:
+        if isinstance(node, ast.Import):
+            for name in node.names:
+                try:
+                    source_name[name.name].append(name.name)
+                except KeyError:
+                    source_name[name.name] = [name.name]
+        elif isinstance(node, ast.ImportFrom):
+            for name in node.names:
+                try:
+                    source_name[node.module].append(name.name)
+                except KeyError:
+                    source_name[node.module] = [name.name]
     return source_name
+
+
+def search_current(ast_body, file_name, keyword, result_list):
+    """
+    Search keyword definition in current file.
+    """
+    for node in ast_body:
+        if isinstance(node, ast.FunctionDef):
+            if node.name == keyword:
+                result_list.append('{0};{1};'.format(file_name, node.lineno))
+        if isinstance(node, ast.ClassDef):
+            if node.name == keyword:
+                result_list.append('{0};{1};'.format(file_name, node.lineno))
+            search_current(node.body, file_name, keyword, result_list)
 
 
 class PythonFinderCommand(sublime_plugin.TextCommand):
@@ -110,15 +80,12 @@ class PythonFinderCommand(sublime_plugin.TextCommand):
         for s in sels:
             # Check if defined in current file.
             k = self.view.substr(s)
-            r = self.view.find_all(r'def\s+{0}\s*\('.format(k))
-            if not r:
-                r = self.view.find_all(r'class\s+{0}\s*\('.format(k))
-            if r:
-                for item in r:
-                    row, col = self.view.rowcol(item.begin())
-                    result = '{0};{1};{2}'.format(
-                        self.view.file_name(), row + 1, self.view.substr(item))
-                    self.result_list.append(result)
+            current_file_name = self.view.file_name()
+            expr_ast = get_ast(current_file_name)
+            search_current(expr_ast.body,
+                           current_file_name,
+                           k, self.result_list)
+            if self.result_list:
                 self.show_result()
                 return
 
@@ -218,12 +185,6 @@ class KeywordSearch(threading.Thread):
                 continue
             self.search(self.imports, keyword)
 
-    def get_func_pattern(self, keyword):
-        return re.compile(r'def\s+{0}\s*\(.*'.format(keyword))
-
-    def get_class_pattern(self, keyword):
-        return re.compile(r'class\s+{0}\s*\(.*\)\s*\:'.format(keyword))
-
     def detect_keyword_file(self, file_name):
         try:
             with open(file_name, 'rb'):
@@ -255,22 +216,9 @@ class KeywordSearch(threading.Thread):
                         continue
                 else:
                     file_name += '.py'
-                try:
-                    with open(file_name, 'rb') as f:
-                        key = keyword.split('.')[-1]
-                        func_pattern = self.get_func_pattern(key)
-                        class_pattern = self.get_class_pattern(key)
-                        pattern = re.compile(r'\b{0}\b'.format(key))
 
-                        for i, l in enumerate(f):
-                            result = pattern.findall(l)
-                            if result:
-                                if not re.findall(func_pattern, l):
-                                    if not re.findall(class_pattern, l):
-                                        continue
-                                result = '{0};{1};{2}'.format(file_name,
-                                                              i + 1,
-                                                              l)
-                                self.result_list.append(result)
-                except IOError:
+                expr_ast = get_ast(file_name)
+                if expr_ast is None:
                     continue
+                search_current(expr_ast.body,
+                               file_name, keyword, self.result_list)
