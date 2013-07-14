@@ -17,24 +17,15 @@ Key Binding
 =======
 
 ```
-MAC: cmd + alt + p
-Windows & Linux: ctrl + alt + p
+Mac: cmd + alt + p
+Windows & Linux: ctrl + alt + g
 ```
 
 Usage
 ====
 
 1. Select any function or macro that you don't familiar with and you want see where does it been defined.
-2. Press ```cmd + alt + p``` in Mac or ```ctrl + alt + p``` in Win & Linux.
-
-Limitation
-==========
-
-1. Still failed to reach some definitions imported by different ways. (e.g from hello import (world, earth))
-
-Disclaimer
-======
-This project is far away from being used in production environment, use it at your own risk.
+2. Press ```cmd + alt + p``` in Mac or ```ctrl + alt + g``` in Win & Linux.
 
 License
 ====

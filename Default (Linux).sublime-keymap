@@ -1,5 +1,5 @@
 [  
     {   
-        "keys": ["ctrl+alt+p"], "command": "python_finder"
+        "keys": ["ctrl+alt+g"], "command": "python_finder"
     }  
 ]
