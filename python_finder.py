@@ -30,7 +30,10 @@ def get_imported_source(file_name):
     expr_ast = get_ast(file_name)
     if expr_ast is None:
         return source_name
+    return lookup_ast(expr_ast, source_name)
 
+
+def lookup_ast(expr_ast, source_name):
     for node in expr_ast.body:
         if isinstance(node, ast.Import):
             for name in node.names:
@@ -44,6 +47,8 @@ def get_imported_source(file_name):
                     source_name[node.module].append(name.name)
                 except KeyError:
                     source_name[node.module] = [name.name]
+        if getattr(node, 'body', False):
+            lookup_ast(node, source_name)
     return source_name
 
 
