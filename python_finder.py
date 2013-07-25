@@ -80,6 +80,7 @@ class PythonFinderCommand(sublime_plugin.TextCommand):
         """
         keywords = []
         imported_sources = []
+        self.result_list[:] = []
 
         sels = self.view.sel()
         for s in sels:
@@ -141,17 +142,16 @@ class PythonFinderCommand(sublime_plugin.TextCommand):
                 self.result_list = thread.result_list
 
         threads = next_threads
-
         if len(threads):
             sublime.set_timeout(lambda: self.handle_threads(threads), 100)
             return
+        self.view.sel().clear()
         self.show_result()
 
     def show_result(self):
         """
         Display the search result in a popup panel.
         """
-        self.view.sel().clear()
         current_window = self.view.window()
         self.result_list = list(set(self.result_list)) or [DEF_NOT_FOUND]
         current_window.show_quick_panel(self.result_list, self.open_selected)
@@ -161,12 +161,10 @@ class PythonFinderCommand(sublime_plugin.TextCommand):
         Handles the popup window that contains the search result.
         """
         if index == -1 or self.result_list[index] == DEF_NOT_FOUND:
-            self.result_list[:] = []
             return
         header_info = self.result_list[index].split(';')
         header_file = '{0}:{1}'.format(header_info[0], header_info[1])
         self.view.window().open_file(header_file, sublime.ENCODED_POSITION)
-        self.result_list[:] = []
 
 
 class KeywordSearch(threading.Thread):
